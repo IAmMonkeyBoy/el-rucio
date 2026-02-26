@@ -1,0 +1,25 @@
+{
+  "name": "slash status",
+  "payload": {
+    "envelope_id": "env-fixture-3",
+    "type": "slash_commands",
+    "payload": {
+      "trigger_id": "TrigFixture3",
+      "command": "/status",
+      "text": "now",
+      "channel_id": "C200",
+      "user_id": "U200"
+    }
+  },
+  "expect": {
+    "actionType": "SlashCommand",
+    "dedupKey": "slash:TrigFixture3",
+    "channelId": "C200",
+    "userId": "U200",
+    "threadTs": null,
+    "text": null,
+    "fileCount": 0,
+    "slashCommand": "/status",
+    "slashText": "now"
+  }
+}

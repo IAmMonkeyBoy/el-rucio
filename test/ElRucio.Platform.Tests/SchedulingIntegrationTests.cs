@@ -1,5 +1,5 @@
-using System.Reflection;
 using ElRucio.Memory.Sqlite;
+using ElRucio.Platform.Commanding;
 using ElRucio.Platform.Orchestration;
 using ElRucio.Platform.Telegram;
 using ElRucio.Scheduler;
@@ -22,7 +22,7 @@ public class SchedulingIntegrationTests
 
         Assert.True(handled);
 
-        var items = await fixture.ScheduledTaskStore.ListAsync("8039589809", CancellationToken.None);
+        var items = await fixture.ScheduledTaskStore.ListAsync("telegram:8039589809", CancellationToken.None);
         var created = Assert.Single(items);
         Assert.StartsWith("once:", created.Cron, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("tell me a short joke", created.Prompt, StringComparison.OrdinalIgnoreCase);
@@ -85,6 +85,7 @@ public class SchedulingIntegrationTests
         public required SqliteScheduledTaskStore ScheduledTaskStore { get; init; }
         public required CapturingOutbound Outbound { get; init; }
         public required CapturingTelegramHandler TelegramHandler { get; init; }
+        public required ChatCommandService CommandService { get; init; }
         public required TelegramPollingService TelegramService { get; init; }
         public required SchedulerWorker SchedulerWorker { get; init; }
 
@@ -124,6 +125,15 @@ public class SchedulingIntegrationTests
                 appOptions,
                 NullLogger<ChatOrchestrator>.Instance);
 
+            var commandService = new ChatCommandService(
+                orchestrator,
+                db,
+                sessionStore,
+                scheduledTaskStore,
+                appOptions,
+                voiceOptions,
+                videoOptions);
+
             var telegramOptions = Options.Create(new TelegramOptions
             {
                 BotToken = "dummy-token"
@@ -134,6 +144,7 @@ public class SchedulingIntegrationTests
 
             var telegramService = new TelegramPollingService(
                 telegramClient,
+                commandService,
                 orchestrator,
                 db,
                 sessionStore,
@@ -158,6 +169,7 @@ public class SchedulingIntegrationTests
                 ScheduledTaskStore = scheduledTaskStore,
                 Outbound = outbound,
                 TelegramHandler = telegramHandler,
+                CommandService = commandService,
                 TelegramService = telegramService,
                 SchedulerWorker = schedulerWorker
             };
@@ -165,10 +177,11 @@ public class SchedulingIntegrationTests
 
         public async Task<bool> InvokeNaturalScheduleAsync(string chatId, string text)
         {
-            var method = typeof(TelegramPollingService).GetMethod("TryHandleNaturalScheduleAsync", BindingFlags.Instance | BindingFlags.NonPublic);
-            Assert.NotNull(method);
-            var task = (Task<bool>)method!.Invoke(TelegramService, [chatId, text, CancellationToken.None])!;
-            return await task;
+            return await CommandService.TryHandleAsync(
+                ConversationRef.Telegram(chatId),
+                text,
+                TelegramService.SendTextAsync,
+                CancellationToken.None);
         }
 
         public async Task RunSchedulerSingleCycleAsync()

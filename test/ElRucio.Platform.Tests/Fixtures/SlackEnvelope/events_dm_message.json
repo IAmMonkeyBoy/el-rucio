@@ -1,0 +1,28 @@
+{
+  "name": "events direct message",
+  "payload": {
+    "envelope_id": "env-fixture-2",
+    "type": "events_api",
+    "payload": {
+      "event_id": "EvFixture2",
+      "event": {
+        "type": "message",
+        "channel_type": "im",
+        "channel": "D123",
+        "user": "U999",
+        "text": "hello"
+      }
+    }
+  },
+  "expect": {
+    "actionType": "InboundMessage",
+    "dedupKey": "events:EvFixture2",
+    "channelId": "D123",
+    "userId": "U999",
+    "threadTs": null,
+    "text": "hello",
+    "fileCount": 0,
+    "slashCommand": null,
+    "slashText": null
+  }
+}

@@ -4,11 +4,16 @@ namespace ElRucio.Memory.Sqlite;
 
 public sealed class SqliteDbInitializer(SqliteDb db, ILogger<SqliteDbInitializer> logger)
 {
+  private static readonly SemaphoreSlim InitLock = new(1, 1);
+
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
-        await using var connection = db.Open();
-        await using var command = connection.CreateCommand();
-        command.CommandText = @"
+    await InitLock.WaitAsync(cancellationToken);
+    try
+    {
+      await using var connection = db.Open();
+      await using var command = connection.CreateCommand();
+      command.CommandText = @"
 CREATE TABLE IF NOT EXISTS sessions (
   chat_id TEXT NOT NULL PRIMARY KEY,
   session_id TEXT NOT NULL,
@@ -69,14 +74,56 @@ CREATE TABLE IF NOT EXISTS scheduled_tasks (
   enabled INTEGER NOT NULL,
   next_run_utc TEXT NOT NULL,
   last_run_utc TEXT NULL,
-  created_utc TEXT NOT NULL
+  created_utc TEXT NOT NULL,
+  provider TEXT NOT NULL DEFAULT 'telegram',
+  conversation_id TEXT NULL,
+  thread_id TEXT NULL,
+  user_id TEXT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_next_run ON scheduled_tasks(enabled, next_run_utc);
 ";
 
-        await command.ExecuteNonQueryAsync(cancellationToken);
-        logger.LogInformation("SQLite schema ensured at {Path}", db.DbPath);
+      await command.ExecuteNonQueryAsync(cancellationToken);
+      await EnsureColumnAsync(connection, "scheduled_tasks", "provider", "TEXT NOT NULL DEFAULT 'telegram'", cancellationToken);
+      await EnsureColumnAsync(connection, "scheduled_tasks", "conversation_id", "TEXT NULL", cancellationToken);
+      await EnsureColumnAsync(connection, "scheduled_tasks", "thread_id", "TEXT NULL", cancellationToken);
+      await EnsureColumnAsync(connection, "scheduled_tasks", "user_id", "TEXT NULL", cancellationToken);
+      logger.LogInformation("SQLite schema ensured at {Path}", db.DbPath);
     }
+    finally
+    {
+      InitLock.Release();
+    }
+    }
+
+  private static async Task EnsureColumnAsync(
+    Microsoft.Data.Sqlite.SqliteConnection connection,
+    string tableName,
+    string columnName,
+    string columnDefinition,
+    CancellationToken cancellationToken)
+  {
+    await using var probe = connection.CreateCommand();
+    probe.CommandText = $"PRAGMA table_info({tableName})";
+    await using var reader = await probe.ExecuteReaderAsync(cancellationToken);
+    while (await reader.ReadAsync(cancellationToken))
+    {
+      if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+      {
+        return;
+      }
+    }
+
+    try
+    {
+      await using var alter = connection.CreateCommand();
+      alter.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition}";
+      await alter.ExecuteNonQueryAsync(cancellationToken);
+    }
+    catch (Microsoft.Data.Sqlite.SqliteException ex) when (ex.SqliteErrorCode == 1 && ex.Message.Contains("duplicate column name", StringComparison.OrdinalIgnoreCase))
+    {
+    }
+  }
 
 }

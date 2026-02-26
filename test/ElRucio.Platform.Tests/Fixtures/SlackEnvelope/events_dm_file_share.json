@@ -1,0 +1,37 @@
+{
+  "name": "events dm file_share",
+  "payload": {
+    "envelope_id": "env-fixture-7",
+    "type": "events_api",
+    "payload": {
+      "event_id": "EvFixture7",
+      "event": {
+        "type": "message",
+        "subtype": "file_share",
+        "channel_type": "im",
+        "channel": "D777",
+        "user": "U777",
+        "text": "",
+        "files": [
+          {
+            "id": "F777",
+            "name": "photo.jpg",
+            "mimetype": "image/jpeg",
+            "url_private_download": "https://files.slack.com/files-pri/T1-F777/photo.jpg"
+          }
+        ]
+      }
+    }
+  },
+  "expect": {
+    "actionType": "InboundMessage",
+    "dedupKey": "events:EvFixture7",
+    "channelId": "D777",
+    "userId": "U777",
+    "threadTs": null,
+    "text": "",
+    "fileCount": 1,
+    "slashCommand": null,
+    "slashText": null
+  }
+}

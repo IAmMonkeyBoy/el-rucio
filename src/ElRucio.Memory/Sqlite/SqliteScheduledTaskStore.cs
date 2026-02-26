@@ -10,7 +10,7 @@ public sealed class SqliteScheduledTaskStore(SqliteDb db) : IScheduledTaskStore
         await using var connection = db.Open();
         await using var command = connection.CreateCommand();
         command.CommandText = @"
-SELECT id, chat_id, session_id, cron, prompt, enabled, next_run_utc, last_run_utc, created_utc
+    SELECT id, chat_id, session_id, cron, prompt, enabled, next_run_utc, last_run_utc, created_utc, provider, conversation_id, thread_id, user_id
 FROM scheduled_tasks
 WHERE chat_id = $chatId
 ORDER BY datetime(created_utc) DESC";
@@ -24,8 +24,8 @@ ORDER BY datetime(created_utc) DESC";
         await using var connection = db.Open();
         await using var command = connection.CreateCommand();
         command.CommandText = @"
-INSERT INTO scheduled_tasks(id, chat_id, session_id, cron, prompt, enabled, next_run_utc, last_run_utc, created_utc)
-VALUES($id, $chatId, $sessionId, $cron, $prompt, $enabled, $nextRunUtc, $lastRunUtc, $createdUtc)";
+    INSERT INTO scheduled_tasks(id, chat_id, session_id, cron, prompt, enabled, next_run_utc, last_run_utc, created_utc, provider, conversation_id, thread_id, user_id)
+    VALUES($id, $chatId, $sessionId, $cron, $prompt, $enabled, $nextRunUtc, $lastRunUtc, $createdUtc, $provider, $conversationId, $threadId, $userId)";
         command.Parameters.AddWithValue("$id", item.Id);
         command.Parameters.AddWithValue("$chatId", item.ChatId);
         command.Parameters.AddWithValue("$sessionId", item.SessionId);
@@ -35,6 +35,10 @@ VALUES($id, $chatId, $sessionId, $cron, $prompt, $enabled, $nextRunUtc, $lastRun
         command.Parameters.AddWithValue("$nextRunUtc", item.NextRunUtc.UtcDateTime.ToString("O"));
         command.Parameters.AddWithValue("$lastRunUtc", item.LastRunUtc?.UtcDateTime.ToString("O") ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("$createdUtc", item.CreatedUtc.UtcDateTime.ToString("O"));
+        command.Parameters.AddWithValue("$provider", item.Provider);
+        command.Parameters.AddWithValue("$conversationId", item.ConversationId ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$threadId", item.ThreadId ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$userId", item.UserId ?? (object)DBNull.Value);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -43,7 +47,7 @@ VALUES($id, $chatId, $sessionId, $cron, $prompt, $enabled, $nextRunUtc, $lastRun
         await using var connection = db.Open();
         await using var command = connection.CreateCommand();
         command.CommandText = @"
-SELECT id, chat_id, session_id, cron, prompt, enabled, next_run_utc, last_run_utc, created_utc
+    SELECT id, chat_id, session_id, cron, prompt, enabled, next_run_utc, last_run_utc, created_utc, provider, conversation_id, thread_id, user_id
 FROM scheduled_tasks
 WHERE enabled = 1 AND datetime(next_run_utc) <= datetime($nowUtc)
 ORDER BY datetime(next_run_utc) ASC";
@@ -100,7 +104,11 @@ WHERE id = $id";
                 reader.GetInt32(5) == 1,
                 DateTimeOffset.Parse(reader.GetString(6)),
                 reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7)),
-                DateTimeOffset.Parse(reader.GetString(8))));
+                DateTimeOffset.Parse(reader.GetString(8)),
+                reader.IsDBNull(9) ? "telegram" : reader.GetString(9),
+                reader.IsDBNull(10) ? null : reader.GetString(10),
+                reader.IsDBNull(11) ? null : reader.GetString(11),
+                reader.IsDBNull(12) ? null : reader.GetString(12)));
         }
 
         return list;

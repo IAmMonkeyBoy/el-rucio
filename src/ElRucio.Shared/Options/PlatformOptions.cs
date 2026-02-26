@@ -19,6 +19,16 @@ public sealed class TelegramOptions
     public string? WebhookPublicUrl { get; set; }
 }
 
+public sealed class SlackOptions
+{
+    public string Mode { get; set; } = "SocketMode";
+    public string? AppToken { get; set; }
+    public string? BotToken { get; set; }
+    public string? SigningSecret { get; set; }
+    public string? BotUserId { get; set; }
+    public int DedupWindowSeconds { get; set; } = 300;
+}
+
 public sealed class CopilotOptions
 {
     public string? Model { get; set; } = "gpt-5";

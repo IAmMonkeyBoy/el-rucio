@@ -71,7 +71,22 @@ public sealed class OpenAiVisionAnalyzer(HttpClient httpClient, IOptions<VideoOp
                 analyses.Add(analysis);
             }
 
-            return await SummarizeFrameAnalysesAsync(analyses, cancellationToken);
+            var nonGenericAnalyses = analyses
+                .Where(analysis => !LooksLikeNonVisualGenericResponse(analysis))
+                .ToList();
+
+            if (nonGenericAnalyses.Count == 0)
+            {
+                return "Video frames were extracted, but visual analysis returned generic/non-visual output for all frames. Please resend the video (or a shorter clip) and retry.";
+            }
+
+            var summary = await SummarizeFrameAnalysesAsync(analyses, cancellationToken);
+            if (LooksLikeNonVisualGenericResponse(summary))
+            {
+                return BuildDeterministicFrameSummary(nonGenericAnalyses);
+            }
+
+            return summary;
         }
         finally
         {
@@ -98,6 +113,11 @@ public sealed class OpenAiVisionAnalyzer(HttpClient httpClient, IOptions<VideoOp
             model = _options.AnalysisModel,
             messages = new object[]
             {
+                new
+                {
+                    role = "system",
+                    content = "You are a vision assistant. The image is provided in this request. Never claim you cannot view or access the image. Describe only what is visually present and avoid generic disclaimers."
+                },
                 new
                 {
                     role = "user",
@@ -137,6 +157,11 @@ public sealed class OpenAiVisionAnalyzer(HttpClient httpClient, IOptions<VideoOp
             model = _options.AnalysisModel,
             messages = new object[]
             {
+                new
+                {
+                    role = "system",
+                    content = "You are summarizing already-computed visual frame analyses. Never claim you cannot see images or request additional context. Use only the supplied frame analyses."
+                },
                 new
                 {
                     role = "user",
@@ -186,6 +211,41 @@ public sealed class OpenAiVisionAnalyzer(HttpClient httpClient, IOptions<VideoOp
 
     private static bool IsVideo(string ext)
         => ext is ".mp4" or ".mov" or ".mkv" or ".webm" or ".avi";
+
+    private static bool LooksLikeNonVisualGenericResponse(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return true;
+        }
+
+        var lower = text.ToLowerInvariant();
+        return lower.Contains("no images")
+               || lower.Contains("no specific entities")
+               || lower.Contains("without direct visual")
+               || lower.Contains("cannot identify")
+               || lower.Contains("can’t see")
+               || lower.Contains("can't see")
+               || lower.Contains("cannot see")
+               || lower.Contains("provide context")
+               || lower.Contains("user-supplied context")
+               || lower.Contains("no visual") && lower.Contains("provided");
+    }
+
+    private static string BuildDeterministicFrameSummary(List<string> frameAnalyses)
+    {
+        var lines = new List<string>
+        {
+            "Video analysis summary (from sampled frames):"
+        };
+
+        for (var index = 0; index < frameAnalyses.Count; index++)
+        {
+            lines.Add($"- Frame {index + 1}: {frameAnalyses[index]}");
+        }
+
+        return string.Join("\n", lines);
+    }
 
     private async Task<bool> CanRunFfmpegAsync(CancellationToken cancellationToken)
     {

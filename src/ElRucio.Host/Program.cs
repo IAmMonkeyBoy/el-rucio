@@ -8,6 +8,12 @@ using ElRucio.Shared.Options;
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services
+	.AddOptions<PlatformOptions>()
+	.Bind(builder.Configuration.GetSection("Platform"))
+	.ValidateDataAnnotations()
+	.ValidateOnStart();
+
+builder.Services
 	.AddOptions<ElRucioOptions>()
 	.Bind(builder.Configuration.GetSection("ElRucio"))
 	.ValidateDataAnnotations()
@@ -15,9 +21,11 @@ builder.Services
 
 builder.Services
 	.AddOptions<TelegramOptions>()
-	.Bind(builder.Configuration.GetSection("Telegram"))
-	.ValidateDataAnnotations()
-	.ValidateOnStart();
+	.Bind(builder.Configuration.GetSection("Telegram"));
+
+builder.Services
+	.AddOptions<SlackOptions>()
+	.Bind(builder.Configuration.GetSection("Slack"));
 
 builder.Services
 	.AddOptions<CopilotOptions>()

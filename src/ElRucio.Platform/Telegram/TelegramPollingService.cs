@@ -2,6 +2,7 @@ using Cronos;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using ElRucio.Memory.Sqlite;
+using ElRucio.Platform.Commanding;
 using ElRucio.Platform.Orchestration;
 using ElRucio.Shared.Contracts;
 using ElRucio.Shared.Models;
@@ -14,6 +15,7 @@ namespace ElRucio.Platform.Telegram;
 
 public sealed class TelegramPollingService(
     TelegramApiClient apiClient,
+    ChatCommandService commandService,
     ChatOrchestrator orchestrator,
     SqliteDb sqliteDb,
     ISessionStore sessionStore,
@@ -80,17 +82,21 @@ public sealed class TelegramPollingService(
         }
     }
 
+    public Task SendTextAsync(ConversationRef conversation, string text, CancellationToken cancellationToken)
+        => SendTextAsync(conversation.ConversationId, text, cancellationToken);
+
     private bool IsAllowed(string chatId)
         => _app.AllowedChatIds.Count == 0 || _app.AllowedChatIds.Contains(chatId);
 
     private async Task HandleMessageAsync(string chatId, TelegramMessage message, CancellationToken cancellationToken)
     {
         var text = message.Text?.Trim();
+        var conversation = ConversationRef.Telegram(chatId);
         var mediaAnalysis = await HandleMediaAnalysisAsync(chatId, message, cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(text) && text.StartsWith('/'))
         {
-            await HandleCommandAsync(chatId, text, cancellationToken);
+            await commandService.TryHandleAsync(conversation, text, SendTextAsync, cancellationToken);
             return;
         }
 
@@ -116,7 +122,7 @@ public sealed class TelegramPollingService(
             return;
         }
 
-        if (await TryHandleNaturalScheduleAsync(chatId, text, cancellationToken))
+        if (await commandService.TryHandleAsync(conversation, text, SendTextAsync, cancellationToken))
         {
             return;
         }
@@ -212,7 +218,9 @@ public sealed class TelegramPollingService(
                 true,
                 next,
                 null,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                "telegram",
+                chatId);
 
             await scheduledTaskStore.InsertAsync(item, cancellationToken);
             await SendTextAsync(chatId, $"Schedule created: {item.Id}", cancellationToken);
@@ -461,7 +469,9 @@ public sealed class TelegramPollingService(
             true,
             runAt,
             null,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            "telegram",
+            chatId);
 
         await scheduledTaskStore.InsertAsync(item, cancellationToken);
         await SendTextAsync(chatId, $"Scheduled one-time task {item.Id} for {runAt:O} (in {minutes} minute(s)).", cancellationToken);

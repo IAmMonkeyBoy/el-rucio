@@ -1,0 +1,41 @@
+{
+  "name": "events dm file_share nested message files",
+  "payload": {
+    "envelope_id": "env-fixture-8",
+    "type": "events_api",
+    "payload": {
+      "event_id": "EvFixture8",
+      "event": {
+        "type": "message",
+        "subtype": "file_share",
+        "channel": "D888",
+        "user": "U888",
+        "text": "",
+        "message": {
+          "channel": "D888",
+          "user": "U888",
+          "text": "",
+          "files": [
+            {
+              "id": "F888",
+              "name": "clip.mp4",
+              "mimetype": "video/mp4",
+              "url_private_download": "https://files.slack.com/files-pri/T1-F888/clip.mp4"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "expect": {
+    "actionType": "InboundMessage",
+    "dedupKey": "events:EvFixture8",
+    "channelId": "D888",
+    "userId": "U888",
+    "threadTs": null,
+    "text": "",
+    "fileCount": 1,
+    "slashCommand": null,
+    "slashText": null
+  }
+}

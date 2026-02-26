@@ -1,0 +1,29 @@
+{
+  "name": "events bot ignored",
+  "payload": {
+    "envelope_id": "env-fixture-4",
+    "type": "events_api",
+    "payload": {
+      "event_id": "EvFixture4",
+      "event": {
+        "type": "message",
+        "channel_type": "im",
+        "channel": "D333",
+        "user": "U333",
+        "bot_id": "B333",
+        "text": "hello"
+      }
+    }
+  },
+  "expect": {
+    "actionType": "None",
+    "dedupKey": "events:EvFixture4",
+    "channelId": null,
+    "userId": null,
+    "threadTs": null,
+    "text": null,
+    "fileCount": 0,
+    "slashCommand": null,
+    "slashText": null
+  }
+}

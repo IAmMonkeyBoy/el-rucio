@@ -20,6 +20,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Fixtures\SlackEnvelope\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\ElRucio.Platform\ElRucio.Platform.csproj" />
     <ProjectReference Include="..\..\src\ElRucio.Scheduler\ElRucio.Scheduler.csproj" />
   </ItemGroup>

@@ -1,10 +1,13 @@
+using ElRucio.Platform.Commanding;
 using ElRucio.Platform.Orchestration;
+using ElRucio.Platform.Slack;
 using ElRucio.Platform.Telegram;
 using ElRucio.Platform.Video;
 using ElRucio.Platform.Voice;
 using ElRucio.Shared.Contracts;
 using ElRucio.Shared.Options;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace ElRucio.Platform;
@@ -25,8 +28,13 @@ public static class ServiceCollectionExtensions
         {
             client.Timeout = TimeSpan.FromSeconds(60);
         });
+        services.AddHttpClient<SlackApiClient>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(40);
+        });
 
         services.AddSingleton<ChatOrchestrator>();
+        services.AddSingleton<ChatCommandService>();
         services.AddSingleton<IVideoAnalyzer>(sp =>
         {
             var video = sp.GetRequiredService<IOptions<VideoOptions>>().Value;
@@ -49,8 +57,41 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddSingleton<TelegramPollingService>();
-        services.AddSingleton<IOutboundMessenger>(sp => sp.GetRequiredService<TelegramPollingService>());
-        services.AddHostedService(sp => sp.GetRequiredService<TelegramPollingService>());
+        services.AddSingleton<SlackSocketModeService>();
+
+        services.AddSingleton<IOutboundMessenger>(sp =>
+        {
+            var platform = sp.GetRequiredService<IOptions<PlatformOptions>>().Value;
+            if (string.Equals(platform.Provider, "slack", StringComparison.OrdinalIgnoreCase))
+            {
+                return sp.GetRequiredService<SlackSocketModeService>();
+            }
+
+            return sp.GetRequiredService<TelegramPollingService>();
+        });
+
+        services.AddSingleton<IHostedService>(sp =>
+        {
+            var platform = sp.GetRequiredService<IOptions<PlatformOptions>>().Value;
+            if (string.Equals(platform.Provider, "slack", StringComparison.OrdinalIgnoreCase))
+            {
+                var slack = sp.GetRequiredService<IOptions<SlackOptions>>().Value;
+                if (string.IsNullOrWhiteSpace(slack.AppToken) || string.IsNullOrWhiteSpace(slack.BotToken))
+                {
+                    throw new InvalidOperationException("Slack provider selected but Slack:AppToken or Slack:BotToken is missing.");
+                }
+
+                return sp.GetRequiredService<SlackSocketModeService>();
+            }
+
+            var telegram = sp.GetRequiredService<IOptions<TelegramOptions>>().Value;
+            if (string.IsNullOrWhiteSpace(telegram.BotToken))
+            {
+                throw new InvalidOperationException("Telegram provider selected but Telegram:BotToken is missing.");
+            }
+
+            return sp.GetRequiredService<TelegramPollingService>();
+        });
         return services;
     }
 }

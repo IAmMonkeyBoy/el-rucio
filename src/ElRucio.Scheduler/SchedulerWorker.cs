@@ -36,8 +36,8 @@ public sealed class SchedulerWorker(
                 var due = await taskStore.GetDueAsync(now, stoppingToken);
                 foreach (var task in due)
                 {
-                    var response = await agentRuntime.SendPromptAsync(task.ChatId, task.Prompt, stoppingToken);
-                    await outboundMessenger.SendTextAsync(task.ChatId, $"[Scheduled:{task.Id}]\n{response}", stoppingToken);
+                    var response = await agentRuntime.SendPromptAsync(task.Conversation, task.Prompt, stoppingToken);
+                    await outboundMessenger.SendTextAsync(task.Conversation, $"[Scheduled:{task.Id}]\n{response}", stoppingToken);
 
                     if (task.Cron.StartsWith("once:", StringComparison.OrdinalIgnoreCase))
                     {
