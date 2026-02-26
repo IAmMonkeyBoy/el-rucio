@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Cronos" Version="0.11.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ElRucio.Shared\ElRucio.Shared.csproj" />
+    <ProjectReference Include="..\ElRucio.Agent\ElRucio.Agent.csproj" />
+    <ProjectReference Include="..\ElRucio.Memory\ElRucio.Memory.csproj" />
+    <ProjectReference Include="..\ElRucio.Platform\ElRucio.Platform.csproj" />
+  </ItemGroup>
+
+</Project>

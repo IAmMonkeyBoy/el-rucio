@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>dotnet-ElRucio.Host-45d81ce5-6681-4c21-a862-54f654c37e47</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ElRucio.Shared\ElRucio.Shared.csproj" />
+    <ProjectReference Include="..\ElRucio.Agent\ElRucio.Agent.csproj" />
+    <ProjectReference Include="..\ElRucio.Memory\ElRucio.Memory.csproj" />
+    <ProjectReference Include="..\ElRucio.Platform\ElRucio.Platform.csproj" />
+    <ProjectReference Include="..\ElRucio.Scheduler\ElRucio.Scheduler.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ElRucio.Agent/ElRucio.Agent.csproj" />
+    <Project Path="src/ElRucio.Host/ElRucio.Host.csproj" />
+    <Project Path="src/ElRucio.Memory/ElRucio.Memory.csproj" />
+    <Project Path="src/ElRucio.Platform/ElRucio.Platform.csproj" />
+    <Project Path="src/ElRucio.Scheduler/ElRucio.Scheduler.csproj" />
+    <Project Path="src/ElRucio.Shared/ElRucio.Shared.csproj" />
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/ElRucio.Memory.Tests/ElRucio.Memory.Tests.csproj" />
+    <Project Path="test/ElRucio.Platform.Tests/ElRucio.Platform.Tests.csproj" />
+  </Folder>
+</Solution>

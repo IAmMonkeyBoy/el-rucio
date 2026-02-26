@@ -1,0 +1,17 @@
+[Unit]
+Description=El Rucio Assistant
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/elrucio
+ExecStart=/usr/bin/dotnet /opt/elrucio/ElRucio.Host.dll
+EnvironmentFile=/etc/elrucio/elrucio.env
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+SyslogIdentifier=elrucio
+
+[Install]
+WantedBy=multi-user.target
