@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly El Rucio Backup Timer
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+Persistent=true
+RandomizedDelaySec=300
+Unit=elrucio-backup.service
+
+[Install]
+WantedBy=timers.target

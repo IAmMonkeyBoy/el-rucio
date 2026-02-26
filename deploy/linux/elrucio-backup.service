@@ -1,0 +1,7 @@
+[Unit]
+Description=El Rucio Backup Job
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/elrucio-src/deploy/linux/backup.sh
