@@ -1,5 +1,7 @@
 using Cronos;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
+using ElRucio.Memory.Sqlite;
 using ElRucio.Platform.Orchestration;
 using ElRucio.Shared.Contracts;
 using ElRucio.Shared.Models;
@@ -13,6 +15,7 @@ namespace ElRucio.Platform.Telegram;
 public sealed class TelegramPollingService(
     TelegramApiClient apiClient,
     ChatOrchestrator orchestrator,
+    SqliteDb sqliteDb,
     ISessionStore sessionStore,
     IScheduledTaskStore scheduledTaskStore,
     IVoiceTranscriber voiceTranscriber,
@@ -22,9 +25,14 @@ public sealed class TelegramPollingService(
     IOptions<VideoOptions> videoOptions,
     ILogger<TelegramPollingService> logger) : BackgroundService, IOutboundMessenger
 {
+    private static readonly Regex NaturalScheduleRegex = new(
+        @"schedule(?:\s+a\s+task)?\s+(?:for|in)\s+(?<mins>\d+)\s+min(?:ute)?s?(?:\s+from\s+now)?\s+to\s+(?<prompt>.+)$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private readonly ElRucioOptions _app = appOptions.Value;
     private readonly VoiceOptions _voice = voiceOptions.Value;
     private readonly VideoOptions _video = videoOptions.Value;
+    private readonly DateTimeOffset _startedUtc = DateTimeOffset.UtcNow;
     private long _offset;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -108,6 +116,11 @@ public sealed class TelegramPollingService(
             return;
         }
 
+        if (await TryHandleNaturalScheduleAsync(chatId, text, cancellationToken))
+        {
+            return;
+        }
+
         var response = await orchestrator.HandleUserPromptAsync(chatId, text, cancellationToken);
         await SendTextAsync(chatId, response, cancellationToken);
     }
@@ -115,7 +128,8 @@ public sealed class TelegramPollingService(
     private async Task HandleCommandAsync(string chatId, string command, CancellationToken cancellationToken)
     {
         var parts = command.Split(' ', 3, StringSplitOptions.RemoveEmptyEntries);
-        var head = parts[0].ToLowerInvariant();
+        var rawHead = parts[0].ToLowerInvariant();
+        var head = rawHead.Split('@', 2, StringSplitOptions.RemoveEmptyEntries)[0];
 
         switch (head)
         {
@@ -124,6 +138,9 @@ public sealed class TelegramPollingService(
                 break;
             case "/status":
                 await SendTextAsync(chatId, await BuildStatusMessageAsync(cancellationToken), cancellationToken);
+                break;
+            case "/diag":
+                await SendTextAsync(chatId, await BuildDiagMessageAsync(cancellationToken), cancellationToken);
                 break;
             case "/newchat":
                 await sessionStore.DeleteAsync(chatId, cancellationToken);
@@ -313,5 +330,114 @@ public sealed class TelegramPollingService(
             logger.LogError(ex, "Media analysis failed");
             return "Media analysis failed; continuing without it.";
         }
+    }
+
+    private async Task<string> BuildDiagMessageAsync(CancellationToken cancellationToken)
+    {
+        var ffmpegReady = await IsToolAvailableAsync(_video.FfmpegPath, "-version", cancellationToken);
+        var uptime = DateTimeOffset.UtcNow - _startedUtc;
+
+        var (sessions, memories, approvalsPending, scheduledEnabled) = await ReadDbCountsAsync(cancellationToken);
+        var backupAge = ReadLatestBackupAge();
+
+        var lines = new List<string>
+        {
+            "Diag report",
+            $"Uptime: {uptime:dd\\.hh\\:mm\\:ss}",
+            $"Voice: enabled={_voice.Enabled}, provider={_voice.SttProvider}, keyConfigured={!string.IsNullOrWhiteSpace(_voice.OpenAiApiKey)}",
+            $"Video: enabled={_video.Enabled}, provider={_video.Provider}, model={_video.AnalysisModel}, frames={_video.FrameSampleCount}, ffmpegReady={ffmpegReady}",
+            $"DB: sessions={sessions}, memories={memories}, approvalsPending={approvalsPending}, scheduledEnabled={scheduledEnabled}",
+            $"Backup: {backupAge}"
+        };
+
+        return string.Join("\n", lines);
+    }
+
+    private async Task<(long sessions, long memories, long approvalsPending, long scheduledEnabled)> ReadDbCountsAsync(CancellationToken cancellationToken)
+    {
+        await using var connection = sqliteDb.Open();
+        return (
+            await ScalarCountAsync(connection, "SELECT COUNT(*) FROM sessions", cancellationToken),
+            await ScalarCountAsync(connection, "SELECT COUNT(*) FROM memories", cancellationToken),
+            await ScalarCountAsync(connection, "SELECT COUNT(*) FROM approvals WHERE status = 'pending'", cancellationToken),
+            await ScalarCountAsync(connection, "SELECT COUNT(*) FROM scheduled_tasks WHERE enabled = 1", cancellationToken)
+        );
+    }
+
+    private static async Task<long> ScalarCountAsync(Microsoft.Data.Sqlite.SqliteConnection connection, string sql, CancellationToken cancellationToken)
+    {
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = sql;
+        var value = await cmd.ExecuteScalarAsync(cancellationToken);
+        return value is long l ? l : Convert.ToInt64(value ?? 0);
+    }
+
+    private static string ReadLatestBackupAge()
+    {
+        var candidates = new[] { "/var/backups/elrucio", Path.Combine("data", "backups") };
+        foreach (var dir in candidates)
+        {
+            if (!Directory.Exists(dir))
+            {
+                continue;
+            }
+
+            var latest = Directory.GetFiles(dir, "elrucio-backup-*.tar.gz")
+                .Select(path => new FileInfo(path))
+                .OrderByDescending(file => file.LastWriteTimeUtc)
+                .FirstOrDefault();
+
+            if (latest is null)
+            {
+                continue;
+            }
+
+            var age = DateTimeOffset.UtcNow - latest.LastWriteTimeUtc;
+            return $"latest={latest.Name}, age={age.TotalHours:F1}h";
+        }
+
+        return "no backup archive found";
+    }
+
+    private async Task<bool> TryHandleNaturalScheduleAsync(string chatId, string text, CancellationToken cancellationToken)
+    {
+        var match = NaturalScheduleRegex.Match(text.Trim());
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        if (!int.TryParse(match.Groups["mins"].Value, out var minutes) || minutes <= 0)
+        {
+            await SendTextAsync(chatId, "I couldn't parse the schedule delay. Try: schedule in 5 minutes to <task>", cancellationToken);
+            return true;
+        }
+
+        var prompt = match.Groups["prompt"].Value.Trim();
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            await SendTextAsync(chatId, "I couldn't parse the task prompt. Try: schedule in 5 minutes to tell me a joke", cancellationToken);
+            return true;
+        }
+
+        var runAt = DateTimeOffset.UtcNow.AddMinutes(minutes);
+        var binding = await sessionStore.GetAsync(chatId, cancellationToken)
+                      ?? new SessionBinding(chatId, Guid.NewGuid().ToString("N"), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        await sessionStore.UpsertAsync(binding with { LastActiveUtc = DateTimeOffset.UtcNow }, cancellationToken);
+
+        var item = new ScheduledTaskItem(
+            Guid.NewGuid().ToString("N")[..8],
+            chatId,
+            binding.SessionId,
+            $"once:{runAt:O}",
+            prompt,
+            true,
+            runAt,
+            null,
+            DateTimeOffset.UtcNow);
+
+        await scheduledTaskStore.InsertAsync(item, cancellationToken);
+        await SendTextAsync(chatId, $"Scheduled one-time task {item.Id} for {runAt:O} (in {minutes} minute(s)).", cancellationToken);
+        return true;
     }
 }

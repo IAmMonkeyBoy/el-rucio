@@ -39,6 +39,13 @@ public sealed class SchedulerWorker(
                     var response = await agentRuntime.SendPromptAsync(task.ChatId, task.Prompt, stoppingToken);
                     await outboundMessenger.SendTextAsync(task.ChatId, $"[Scheduled:{task.Id}]\n{response}", stoppingToken);
 
+                    if (task.Cron.StartsWith("once:", StringComparison.OrdinalIgnoreCase))
+                    {
+                        await taskStore.SetEnabledAsync(task.Id, false, stoppingToken);
+                        await taskStore.TouchRunAsync(task.Id, now, now, stoppingToken);
+                        continue;
+                    }
+
                     var cron = CronExpression.Parse(task.Cron);
                     var next = cron.GetNextOccurrence(now, TimeZoneInfo.Utc) ?? now.AddMinutes(5);
                     await taskStore.TouchRunAsync(task.Id, now, next, stoppingToken);
