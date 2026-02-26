@@ -337,7 +337,7 @@ public sealed class TelegramPollingService(
         var ffmpegReady = await IsToolAvailableAsync(_video.FfmpegPath, "-version", cancellationToken);
         var uptime = DateTimeOffset.UtcNow - _startedUtc;
 
-        var (sessions, memories, approvalsPending, scheduledEnabled) = await ReadDbCountsAsync(cancellationToken);
+        var (sessions, memories, approvalsPending, scheduledEnabled, overdueCount, oldestDueAgeMinutes, latestRunUtc) = await ReadDbCountsAsync(cancellationToken);
         var backupAge = ReadLatestBackupAge();
 
         var lines = new List<string>
@@ -347,20 +347,34 @@ public sealed class TelegramPollingService(
             $"Voice: enabled={_voice.Enabled}, provider={_voice.SttProvider}, keyConfigured={!string.IsNullOrWhiteSpace(_voice.OpenAiApiKey)}",
             $"Video: enabled={_video.Enabled}, provider={_video.Provider}, model={_video.AnalysisModel}, frames={_video.FrameSampleCount}, ffmpegReady={ffmpegReady}",
             $"DB: sessions={sessions}, memories={memories}, approvalsPending={approvalsPending}, scheduledEnabled={scheduledEnabled}",
+            $"Scheduler: overdue={overdueCount}, oldestDueAgeMin={(oldestDueAgeMinutes is null ? "n/a" : oldestDueAgeMinutes.Value.ToString("F1"))}, latestRunUtc={(latestRunUtc ?? "n/a")}",
             $"Backup: {backupAge}"
         };
 
         return string.Join("\n", lines);
     }
 
-    private async Task<(long sessions, long memories, long approvalsPending, long scheduledEnabled)> ReadDbCountsAsync(CancellationToken cancellationToken)
+    private async Task<(long sessions, long memories, long approvalsPending, long scheduledEnabled, long overdueCount, double? oldestDueAgeMinutes, string? latestRunUtc)> ReadDbCountsAsync(CancellationToken cancellationToken)
     {
         await using var connection = sqliteDb.Open();
+        var overdueCount = await ScalarCountAsync(connection, "SELECT COUNT(*) FROM scheduled_tasks WHERE enabled = 1 AND datetime(next_run_utc) <= datetime('now')", cancellationToken);
+        var oldestDueIso = await ScalarStringAsync(connection, "SELECT MIN(next_run_utc) FROM scheduled_tasks WHERE enabled = 1 AND datetime(next_run_utc) <= datetime('now')", cancellationToken);
+        var latestRunUtc = await ScalarStringAsync(connection, "SELECT MAX(last_run_utc) FROM scheduled_tasks WHERE last_run_utc IS NOT NULL", cancellationToken);
+
+        double? oldestDueAgeMinutes = null;
+        if (!string.IsNullOrWhiteSpace(oldestDueIso) && DateTimeOffset.TryParse(oldestDueIso, out var oldestDue))
+        {
+            oldestDueAgeMinutes = (DateTimeOffset.UtcNow - oldestDue).TotalMinutes;
+        }
+
         return (
             await ScalarCountAsync(connection, "SELECT COUNT(*) FROM sessions", cancellationToken),
             await ScalarCountAsync(connection, "SELECT COUNT(*) FROM memories", cancellationToken),
             await ScalarCountAsync(connection, "SELECT COUNT(*) FROM approvals WHERE status = 'pending'", cancellationToken),
-            await ScalarCountAsync(connection, "SELECT COUNT(*) FROM scheduled_tasks WHERE enabled = 1", cancellationToken)
+            await ScalarCountAsync(connection, "SELECT COUNT(*) FROM scheduled_tasks WHERE enabled = 1", cancellationToken),
+            overdueCount,
+            oldestDueAgeMinutes,
+            latestRunUtc
         );
     }
 
@@ -370,6 +384,19 @@ public sealed class TelegramPollingService(
         cmd.CommandText = sql;
         var value = await cmd.ExecuteScalarAsync(cancellationToken);
         return value is long l ? l : Convert.ToInt64(value ?? 0);
+    }
+
+    private static async Task<string?> ScalarStringAsync(Microsoft.Data.Sqlite.SqliteConnection connection, string sql, CancellationToken cancellationToken)
+    {
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = sql;
+        var value = await cmd.ExecuteScalarAsync(cancellationToken);
+        if (value is null || value is DBNull)
+        {
+            return null;
+        }
+
+        return value.ToString();
     }
 
     private static string ReadLatestBackupAge()

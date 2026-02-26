@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ElRucio.Platform\ElRucio.Platform.csproj" />
+    <ProjectReference Include="..\..\src\ElRucio.Scheduler\ElRucio.Scheduler.csproj" />
   </ItemGroup>
 
 </Project>

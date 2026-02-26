@@ -52,3 +52,32 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Local runtime data / databases
+data/
+src/ElRucio.Host/data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Backups / archives
+*.tar
+*.tar.gz
+*.tgz
+
+# Environment / secret files
+.env
+.env.*
+*.env
+*.secret
+*.secrets
+
+# Keep example env templates
+!deploy/linux/elrucio.env.example
+
+# Optional local appsettings overrides
+src/ElRucio.Host/appsettings.Local.json
+src/ElRucio.Host/appsettings.Production.json
+
+# Editor artifacts
+.vscode/

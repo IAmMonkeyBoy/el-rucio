@@ -1,9 +1,0 @@
-[Unit]
-Description=El Rucio
-
-[Service]
-ExecStart=/usr/bin/dotnet /path/to/ElRucio.Host.dll
-Restart=always
-
-[Install]
-WantedBy=default.target
