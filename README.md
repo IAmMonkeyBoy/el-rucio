@@ -25,6 +25,8 @@ Set these values before first run:
 - `Telegram:BotToken`
 - `ElRucio:AllowedChatIds` (recommended)
 - `Voice:OpenAiApiKey` (if STT enabled)
+- `Video:ApiKey` (if video/image analysis enabled with `Video:Provider=openai`)
+- install `ffmpeg` on host for video file analysis (frame sampling)
 
 Environment variable overrides are supported via standard .NET conventions, for example:
 - `Telegram__BotToken`
@@ -104,6 +106,7 @@ For production Linux/systemd deployment steps, use:
 - `deploy/linux/elrucio.env.example`
 
 ## Explicit stubs / limitations
-- Video analysis provider is intentionally stubbed (`VideoAnalyzerStub`) and throws `NotSupportedException` until provider wiring is added.
+- `Video:Provider=openai` supports image analysis directly and video analysis via sampled frames extracted with `ffmpeg`.
+- Very long videos are sampled (not fully transcribed frame-by-frame), so output is an informed summary, not exhaustive coverage.
 - WhatsApp bridge is not implemented in this selection.
 - TTS voice replies are not implemented in this selection (STT only).

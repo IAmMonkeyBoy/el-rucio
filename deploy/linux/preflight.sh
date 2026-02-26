@@ -42,10 +42,23 @@ ok "env file found: $ENV_FILE"
 telegram_token="$(grep -E '^Telegram__BotToken=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
 openai_key="$(grep -E '^Voice__OpenAiApiKey=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
 allowed_chat="$(grep -E '^ElRucio__AllowedChatIds__0=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
+video_enabled="$(grep -E '^Video__Enabled=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
+video_provider="$(grep -E '^Video__Provider=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
+video_api_key="$(grep -E '^Video__ApiKey=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
 
 [[ -n "$telegram_token" ]] || warn "Telegram__BotToken is empty"
 [[ -n "$openai_key" ]] || warn "Voice__OpenAiApiKey is empty (STT disabled unless you set it)"
 [[ -n "$allowed_chat" ]] || warn "ElRucio__AllowedChatIds__0 is empty (bot access not locked)"
+
+if [[ "${video_enabled,,}" == "true" ]]; then
+  [[ -n "$video_provider" ]] || warn "Video__Provider is empty"
+  [[ -n "$video_api_key" ]] || warn "Video__ApiKey is empty (video/image analysis will fail)"
+  if ! command -v ffmpeg >/dev/null 2>&1; then
+    warn "ffmpeg not installed; video file analysis requires ffmpeg"
+  else
+    ok "ffmpeg present for video frame extraction"
+  fi
+fi
 
 if [[ -n "$telegram_token" ]]; then
   if [[ "$telegram_token" =~ ^[0-9]+:[A-Za-z0-9_-]{30,}$ ]]; then

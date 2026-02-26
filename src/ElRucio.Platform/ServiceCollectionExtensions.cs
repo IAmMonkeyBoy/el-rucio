@@ -21,9 +21,22 @@ public static class ServiceCollectionExtensions
         {
             client.Timeout = TimeSpan.FromSeconds(45);
         });
+        services.AddHttpClient<OpenAiVisionAnalyzer>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(60);
+        });
 
         services.AddSingleton<ChatOrchestrator>();
-        services.AddSingleton<IVideoAnalyzer, VideoAnalyzerStub>();
+        services.AddSingleton<IVideoAnalyzer>(sp =>
+        {
+            var video = sp.GetRequiredService<IOptions<VideoOptions>>().Value;
+            if (video.Enabled && string.Equals(video.Provider, "openai", StringComparison.OrdinalIgnoreCase))
+            {
+                return sp.GetRequiredService<OpenAiVisionAnalyzer>();
+            }
+
+            return new VideoAnalyzerStub();
+        });
         services.AddSingleton<IVoiceTranscriber>(sp =>
         {
             var voice = sp.GetRequiredService<IOptions<VoiceOptions>>().Value;

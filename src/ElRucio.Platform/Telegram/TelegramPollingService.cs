@@ -1,4 +1,5 @@
 using Cronos;
+using System.Diagnostics;
 using ElRucio.Platform.Orchestration;
 using ElRucio.Shared.Contracts;
 using ElRucio.Shared.Models;
@@ -15,12 +16,15 @@ public sealed class TelegramPollingService(
     ISessionStore sessionStore,
     IScheduledTaskStore scheduledTaskStore,
     IVoiceTranscriber voiceTranscriber,
+    IVideoAnalyzer videoAnalyzer,
     IOptions<ElRucioOptions> appOptions,
     IOptions<VoiceOptions> voiceOptions,
+    IOptions<VideoOptions> videoOptions,
     ILogger<TelegramPollingService> logger) : BackgroundService, IOutboundMessenger
 {
     private readonly ElRucioOptions _app = appOptions.Value;
     private readonly VoiceOptions _voice = voiceOptions.Value;
+    private readonly VideoOptions _video = videoOptions.Value;
     private long _offset;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -74,6 +78,7 @@ public sealed class TelegramPollingService(
     private async Task HandleMessageAsync(string chatId, TelegramMessage message, CancellationToken cancellationToken)
     {
         var text = message.Text?.Trim();
+        var mediaAnalysis = await HandleMediaAnalysisAsync(chatId, message, cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(text) && text.StartsWith('/'))
         {
@@ -90,9 +95,16 @@ public sealed class TelegramPollingService(
             }
         }
 
+        if (!string.IsNullOrWhiteSpace(mediaAnalysis))
+        {
+            text = string.IsNullOrWhiteSpace(text)
+                ? $"[Media analysis]\n{mediaAnalysis}\n\nPlease help me with this media."
+                : $"{text}\n\n[Media analysis]\n{mediaAnalysis}";
+        }
+
         if (string.IsNullOrWhiteSpace(text))
         {
-            await SendTextAsync(chatId, "Send text, or send voice if STT is enabled.", cancellationToken);
+            await SendTextAsync(chatId, "Send text, voice, or media (photo/video) if enabled.", cancellationToken);
             return;
         }
 
@@ -111,7 +123,7 @@ public sealed class TelegramPollingService(
                 await SendTextAsync(chatId, "El Rucio connected.", cancellationToken);
                 break;
             case "/status":
-                await SendTextAsync(chatId, orchestrator.BuildStatusMessage(), cancellationToken);
+                await SendTextAsync(chatId, await BuildStatusMessageAsync(cancellationToken), cancellationToken);
                 break;
             case "/newchat":
                 await sessionStore.DeleteAsync(chatId, cancellationToken);
@@ -219,5 +231,87 @@ public sealed class TelegramPollingService(
         }
 
         return await voiceTranscriber.TranscribeAsync(downloaded, cancellationToken);
+    }
+
+    private async Task<string> BuildStatusMessageAsync(CancellationToken cancellationToken)
+    {
+        var ffmpegReady = await IsToolAvailableAsync(_video.FfmpegPath, "-version", cancellationToken);
+        var lines = new List<string>
+        {
+            orchestrator.BuildStatusMessage(),
+            $"Voice: enabled={_voice.Enabled}, provider={_voice.SttProvider}, keyConfigured={!string.IsNullOrWhiteSpace(_voice.OpenAiApiKey)}",
+            $"Video: enabled={_video.Enabled}, provider={_video.Provider}, keyConfigured={!string.IsNullOrWhiteSpace(_video.ApiKey)}",
+            $"Video runtime: model={_video.AnalysisModel}, frameSampleCount={_video.FrameSampleCount}, ffmpegPath={_video.FfmpegPath}, ffmpegReady={ffmpegReady}"
+        };
+
+        return string.Join("\n", lines);
+    }
+
+    private static async Task<bool> IsToolAvailableAsync(string fileName, string arguments, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = fileName,
+                    Arguments = arguments,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            await process.WaitForExitAsync(cancellationToken);
+            return process.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task<string?> HandleMediaAnalysisAsync(string chatId, TelegramMessage message, CancellationToken cancellationToken)
+    {
+        if (!_video.Enabled)
+        {
+            return null;
+        }
+
+        var fileId = message.Photo?.LastOrDefault()?.FileId ?? message.Video?.FileId;
+        if (string.IsNullOrWhiteSpace(fileId))
+        {
+            return null;
+        }
+
+        var root = Path.Combine(_app.DataDir, "media", "telegram", chatId);
+        var downloaded = await apiClient.DownloadFileAsync(fileId, root, cancellationToken);
+        if (string.IsNullOrWhiteSpace(downloaded))
+        {
+            return null;
+        }
+
+        try
+        {
+            return await videoAnalyzer.AnalyzeAsync(downloaded, cancellationToken);
+        }
+        catch (NotSupportedException ex)
+        {
+            logger.LogWarning(ex, "Video analyzer provider not fully wired");
+            return "Video analysis is enabled but provider wiring is incomplete.";
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Media analysis failed");
+            return "Media analysis failed; continuing without it.";
+        }
     }
 }

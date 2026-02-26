@@ -60,6 +60,9 @@ public sealed class VideoOptions
     public bool Enabled { get; set; }
     public string? Provider { get; set; }
     public string? ApiKey { get; set; }
+    public string AnalysisModel { get; set; } = "gpt-4o-mini";
+    public string FfmpegPath { get; set; } = "ffmpeg";
+    public int FrameSampleCount { get; set; } = 4;
 }
 
 public sealed class ServiceInstallOptions
