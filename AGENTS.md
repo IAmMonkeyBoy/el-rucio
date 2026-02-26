@@ -1,7 +1,7 @@
-# Copilot Instructions for El Rucio
+# Agent Instructions for El Rucio
 
-> Mirror file: `AGENTS.md` is canonical in this repository.
-> Keep this file synchronized with `AGENTS.md`.
+> Canonical file: this `AGENTS.md` is the source of truth for agent instructions in this repository.
+> Keep `.github/copilot-instructions.md` synchronized with this file.
 
 ## Code style and patterns
 - Target framework is `.NET 10` (`net10.0`) with nullable reference types and implicit usings enabled.
