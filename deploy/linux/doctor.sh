@@ -33,6 +33,18 @@ else
 fi
 
 echo
+echo "--- hardening ---"
+if [[ -f "$SRC_DIR/deploy/linux/hardening-check.sh" ]]; then
+  if bash "$SRC_DIR/deploy/linux/hardening-check.sh"; then
+    echo "hardening: PASS"
+  else
+    echo "hardening: FAIL"
+  fi
+else
+  echo "hardening check script not found: $SRC_DIR/deploy/linux/hardening-check.sh"
+fi
+
+echo
 echo "--- backup status ---"
 latest_backup="$(ls -1t "$BACKUP_DIR"/elrucio-backup-*.tar.gz 2>/dev/null | head -n1 || true)"
 if [[ -n "$latest_backup" ]]; then

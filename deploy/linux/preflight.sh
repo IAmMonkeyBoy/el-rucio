@@ -26,7 +26,8 @@ for f in \
   "$SRC_DIR/deploy/linux/install.sh" \
   "$SRC_DIR/deploy/linux/update.sh" \
   "$SRC_DIR/deploy/linux/backup.sh" \
-  "$SRC_DIR/deploy/linux/restore.sh"; do
+  "$SRC_DIR/deploy/linux/restore.sh" \
+  "$SRC_DIR/deploy/linux/hardening-check.sh"; do
   [[ -f "$f" ]] || fail "required file missing: $f"
 done
 ok "deploy assets present"

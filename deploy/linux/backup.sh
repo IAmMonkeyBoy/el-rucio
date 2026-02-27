@@ -2,10 +2,10 @@
 set -euo pipefail
 
 APP_NAME="elrucio"
-APP_DIR="${APP_DIR:-/opt/elrucio}"
 ENV_FILE="${ENV_FILE:-/etc/elrucio/elrucio.env}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/elrucio}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
+DEFAULT_DATA_DIR="${DEFAULT_DATA_DIR:-/var/lib/elrucio/data}"
 
 timestamp="$(date -u +%Y%m%d-%H%M%SZ)"
 work_dir="$BACKUP_DIR/$timestamp"
@@ -17,25 +17,20 @@ fi
 
 mkdir -p "$work_dir"
 
-echo "[1/4] Backup SQLite DB"
-db_candidates=(
-  "$APP_DIR/data/elrucio.db"
-  "/opt/elrucio-src/src/ElRucio.Host/data/elrucio.db"
-)
-
-db_found=""
-for p in "${db_candidates[@]}"; do
-  if [[ -f "$p" ]]; then
-    db_found="$p"
-    break
+data_dir="$DEFAULT_DATA_DIR"
+if [[ -f "$ENV_FILE" ]]; then
+  parsed_data_dir="$(grep -E '^ElRucio__DataDir=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
+  if [[ -n "$parsed_data_dir" ]]; then
+    data_dir="$parsed_data_dir"
   fi
-done
+fi
 
-if [[ -n "$db_found" ]]; then
-  cp "$db_found" "$work_dir/elrucio.db"
-  echo "DB copied from: $db_found"
+echo "[1/4] Backup runtime data directory"
+if [[ -d "$data_dir" ]]; then
+  cp -a "$data_dir" "$work_dir/data"
+  echo "Data copied from: $data_dir"
 else
-  echo "DB not found in expected paths; skipping DB copy."
+  echo "Data directory not found: $data_dir"
 fi
 
 echo "[2/4] Backup env file"

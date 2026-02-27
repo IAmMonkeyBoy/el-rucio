@@ -2,9 +2,11 @@
 set -euo pipefail
 
 APP_NAME="elrucio"
-APP_DIR="${APP_DIR:-/opt/elrucio}"
 ENV_FILE="${ENV_FILE:-/etc/elrucio/elrucio.env}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/elrucio}"
+DEFAULT_DATA_DIR="${DEFAULT_DATA_DIR:-/var/lib/elrucio/data}"
+SERVICE_USER="${SERVICE_USER:-elrucio}"
+SERVICE_GROUP="${SERVICE_GROUP:-elrucio}"
 TEMP_DIR="$(mktemp -d)"
 
 cleanup() {
@@ -31,6 +33,14 @@ if [[ ! -f "$archive" ]]; then
   exit 1
 fi
 
+data_dir="$DEFAULT_DATA_DIR"
+if [[ -f "$ENV_FILE" ]]; then
+  parsed_data_dir="$(grep -E '^ElRucio__DataDir=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
+  if [[ -n "$parsed_data_dir" ]]; then
+    data_dir="$parsed_data_dir"
+  fi
+fi
+
 echo "[1/7] Stopping service"
 systemctl stop "$APP_NAME" || true
 
@@ -43,21 +53,27 @@ if [[ -z "$root_dir" ]]; then
   exit 1
 fi
 
-echo "[3/7] Restoring DB"
-mkdir -p "$APP_DIR/data"
-if [[ -f "$root_dir/elrucio.db" ]]; then
-  cp "$root_dir/elrucio.db" "$APP_DIR/data/elrucio.db"
-  chmod 600 "$APP_DIR/data/elrucio.db"
-  echo "DB restored to $APP_DIR/data/elrucio.db"
+echo "[3/7] Restoring runtime data directory"
+if [[ -d "$root_dir/data" ]]; then
+  mkdir -p "$(dirname "$data_dir")"
+  rm -rf "$data_dir"
+  cp -a "$root_dir/data" "$data_dir"
+  if id -u "$SERVICE_USER" >/dev/null 2>&1; then
+    chown -R "$SERVICE_USER:$SERVICE_GROUP" "$data_dir"
+  fi
+  echo "Data restored to $data_dir"
 else
-  echo "No elrucio.db in archive; skipping DB restore."
+  echo "No data directory in archive; skipping data restore."
 fi
 
 echo "[4/7] Restoring env file"
 if [[ -f "$root_dir/elrucio.env" ]]; then
   mkdir -p "$(dirname "$ENV_FILE")"
   cp "$root_dir/elrucio.env" "$ENV_FILE"
-  chmod 600 "$ENV_FILE"
+  chmod 640 "$ENV_FILE"
+  if getent group "$SERVICE_GROUP" >/dev/null 2>&1; then
+    chown root:"$SERVICE_GROUP" "$ENV_FILE"
+  fi
   echo "Env restored to $ENV_FILE"
 else
   echo "No elrucio.env in archive; skipping env restore."

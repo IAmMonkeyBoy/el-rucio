@@ -48,5 +48,16 @@ systemctl restart "$APP_NAME"
 echo "[5/5] Verifying status"
 systemctl status "$APP_NAME" --no-pager
 
+echo "[post] Hardening drift check (non-blocking)"
+if [[ -f "$SRC_DIR/deploy/linux/hardening-check.sh" ]]; then
+  if bash "$SRC_DIR/deploy/linux/hardening-check.sh"; then
+    echo "hardening: PASS"
+  else
+    echo "[WARN] hardening drift detected; review deploy/linux/elrucio.service and reload systemd"
+  fi
+else
+  echo "[WARN] hardening-check script missing: $SRC_DIR/deploy/linux/hardening-check.sh"
+fi
+
 echo
 echo "Update complete. Tail logs with: journalctl -u $APP_NAME -f"
