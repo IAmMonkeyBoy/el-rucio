@@ -40,14 +40,38 @@ fi
 
 ok "env file found: $ENV_FILE"
 
+platform_provider="$(grep -E '^Platform__Provider=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
+platform_provider="${platform_provider,,}"
+if [[ -z "$platform_provider" ]]; then
+  platform_provider="slack"
+fi
+
 telegram_token="$(grep -E '^Telegram__BotToken=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
+slack_app_token="$(grep -E '^Slack__AppToken=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
+slack_bot_token="$(grep -E '^Slack__BotToken=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
 openai_key="$(grep -E '^Voice__OpenAiApiKey=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
 allowed_chat="$(grep -E '^ElRucio__AllowedChatIds__0=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
 video_enabled="$(grep -E '^Video__Enabled=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
 video_provider="$(grep -E '^Video__Provider=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
 video_api_key="$(grep -E '^Video__ApiKey=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
 
-[[ -n "$telegram_token" ]] || warn "Telegram__BotToken is empty"
+if [[ "$platform_provider" == "slack" ]]; then
+  [[ -n "$slack_app_token" ]] || warn "Slack__AppToken is empty (required for Slack Socket Mode)"
+  [[ -n "$slack_bot_token" ]] || warn "Slack__BotToken is empty (required for Slack API calls)"
+
+  if [[ -n "$slack_app_token" ]] && [[ ! "$slack_app_token" =~ ^xapp- ]]; then
+    warn "Slack__AppToken format looks unusual"
+  fi
+
+  if [[ -n "$slack_bot_token" ]] && [[ ! "$slack_bot_token" =~ ^xoxb- ]]; then
+    warn "Slack__BotToken format looks unusual"
+  fi
+elif [[ "$platform_provider" == "telegram" ]]; then
+  [[ -n "$telegram_token" ]] || warn "Telegram__BotToken is empty"
+else
+  warn "Platform__Provider is '$platform_provider' (expected 'slack' or 'telegram')"
+fi
+
 [[ -n "$openai_key" ]] || warn "Voice__OpenAiApiKey is empty (STT disabled unless you set it)"
 [[ -n "$allowed_chat" ]] || warn "ElRucio__AllowedChatIds__0 is empty (bot access not locked)"
 
@@ -61,7 +85,7 @@ if [[ "${video_enabled,,}" == "true" ]]; then
   fi
 fi
 
-if [[ -n "$telegram_token" ]]; then
+if [[ "$platform_provider" == "telegram" ]] && [[ -n "$telegram_token" ]]; then
   if [[ "$telegram_token" =~ ^[0-9]+:[A-Za-z0-9_-]{30,}$ ]]; then
     ok "Telegram token format looks valid"
   else

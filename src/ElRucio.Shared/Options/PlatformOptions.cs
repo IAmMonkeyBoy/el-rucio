@@ -5,7 +5,7 @@ namespace ElRucio.Shared.Options;
 public sealed class PlatformOptions
 {
     [Required]
-    public string Provider { get; set; } = "telegram";
+    public string Provider { get; set; } = "slack";
 }
 
 public sealed class TelegramOptions

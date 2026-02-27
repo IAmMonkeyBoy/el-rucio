@@ -28,7 +28,23 @@ echo "[3] files"
 echo
 echo "[4] env keys presence (values hidden)"
 if [[ -f "$ENV_FILE" ]]; then
-  grep -q '^Telegram__BotToken=' "$ENV_FILE" && echo "Telegram__BotToken: present" || echo "Telegram__BotToken: missing"
+  platform_provider="$(grep -E '^Platform__Provider=' "$ENV_FILE" | head -n1 | cut -d= -f2- || true)"
+  platform_provider="${platform_provider,,}"
+  if [[ -z "$platform_provider" ]]; then
+    platform_provider="slack"
+  fi
+
+  echo "Platform__Provider: $platform_provider"
+
+  if [[ "$platform_provider" == "slack" ]]; then
+    grep -q '^Slack__AppToken=' "$ENV_FILE" && echo "Slack__AppToken: present" || echo "Slack__AppToken: missing"
+    grep -q '^Slack__BotToken=' "$ENV_FILE" && echo "Slack__BotToken: present" || echo "Slack__BotToken: missing"
+  elif [[ "$platform_provider" == "telegram" ]]; then
+    grep -q '^Telegram__BotToken=' "$ENV_FILE" && echo "Telegram__BotToken: present" || echo "Telegram__BotToken: missing"
+  else
+    echo "Platform__Provider: unknown ($platform_provider)"
+  fi
+
   grep -q '^Voice__OpenAiApiKey=' "$ENV_FILE" && echo "Voice__OpenAiApiKey: present" || echo "Voice__OpenAiApiKey: missing"
   grep -q '^ElRucio__AllowedChatIds__0=' "$ENV_FILE" && echo "AllowedChatIds: present" || echo "AllowedChatIds: missing"
 fi

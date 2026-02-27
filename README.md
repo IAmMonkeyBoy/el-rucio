@@ -1,13 +1,13 @@
 # El Rucio
 
-Local-first AI assistant: Telegram bot -> bridge -> local GitHub Copilot SDK runtime.
+Local-first AI assistant: Slack-first bot bridge -> local GitHub Copilot SDK runtime (Telegram also supported).
 
 ## What this build includes
-- Telegram polling transport.
+- Slack Socket Mode transport (default) with Telegram transport support.
 - Copilot SDK-backed runtime sessions with `chat_id -> session_id` SQLite mapping.
 - Full memory mode: SQLite + FTS5 + semantic/episodic sectors + salience decay.
 - Safety gate + approval queue (`/approve`, `/cancel`).
-- Scheduler with cron polling loop and Telegram controls.
+- Scheduler with cron polling loop and chat-command controls.
 - Voice STT via OpenAI Whisper transcription.
 - Video feature selected as explicit stub (interface in place, provider not wired).
 - Service install artifacts generator (manual install commands/files).
@@ -15,21 +15,25 @@ Local-first AI assistant: Telegram bot -> bridge -> local GitHub Copilot SDK run
 ## Prerequisites
 - .NET 10 SDK.
 - GitHub Copilot CLI installed and authenticated.
-- Telegram bot token from @BotFather.
+- Slack app credentials (Socket Mode app token + bot token) for default provider.
 - OpenAI API key for STT if voice is enabled.
 
 ## Configuration
 Primary config file: `src/ElRucio.Host/appsettings.json`.
 
 Set these values before first run:
-- `Telegram:BotToken`
+- `Platform:Provider` (`slack` by default, or `telegram`)
+- `Slack:AppToken`
+- `Slack:BotToken`
 - `ElRucio:AllowedChatIds` (recommended)
 - `Voice:OpenAiApiKey` (if STT enabled)
 - `Video:ApiKey` (if video/image analysis enabled with `Video:Provider=openai`)
 - install `ffmpeg` on host for video file analysis (frame sampling)
 
 Environment variable overrides are supported via standard .NET conventions, for example:
-- `Telegram__BotToken`
+- `Platform__Provider`
+- `Slack__AppToken`
+- `Slack__BotToken`
 - `Voice__OpenAiApiKey`
 - `ElRucio__AllowedChatIds__0`
 
@@ -53,7 +57,60 @@ dotnet build ElRucio.slnx
 dotnet run --project src/ElRucio.Host/ElRucio.Host.csproj
 ```
 
-## Telegram commands
+## Docker (verification path)
+
+Build image:
+
+```bash
+docker build -t elrucio:local .
+```
+
+Run container with strict state separation (`/var/lib/elrucio` volume):
+
+```bash
+docker run --rm -it \
+  -v elrucio-data:/var/lib/elrucio \
+  -e Platform__Provider="slack" \
+  -e Slack__AppToken="<xapp-token>" \
+  -e Slack__BotToken="<xoxb-token>" \
+  -e Voice__OpenAiApiKey="<openai-key>" \
+  -e ElRucio__AllowedChatIds__0="slack:<channel-id>" \
+  elrucio:local
+```
+
+One-time Copilot auth bootstrap in the same persistent volume:
+
+```bash
+docker run --rm -it \
+  -v elrucio-data:/var/lib/elrucio \
+  --entrypoint /bin/sh \
+  elrucio:local -c "copilot auth login"
+```
+
+Optional auth check:
+
+```bash
+docker run --rm -it \
+  -v elrucio-data:/var/lib/elrucio \
+  --entrypoint /bin/sh \
+  elrucio:local -c "copilot auth status"
+```
+
+Helper script (same flow):
+
+```bash
+bash scripts/docker-auth.sh login
+bash scripts/docker-auth.sh status
+```
+
+Notes:
+- The container runs as non-root user `elrucio`.
+- Runtime data is persisted under `ElRucio__DataDir=/var/lib/elrucio/data`.
+- `ffmpeg` is installed in the image for video frame extraction.
+- Copilot CLI is installed in the image at `/usr/local/bin/copilot`.
+- Copilot auth state is stored under `/var/lib/elrucio`; keep that volume persistent.
+
+## Chat commands
 - `/start`
 - `/status`
 - `/newchat`
@@ -65,6 +122,10 @@ dotnet run --project src/ElRucio.Host/ElRucio.Host.csproj
 - `/schedule pause <id>`
 - `/schedule resume <id>`
 - `/schedule delete <id>`
+
+Provider note:
+- Slack is the default provider.
+- Telegram remains supported by setting `Platform:Provider=telegram` and `Telegram:BotToken`.
 
 ## Try these (10 prompts)
 1. `Summarize what you can do in 5 bullets.`
@@ -80,15 +141,15 @@ dotnet run --project src/ElRucio.Host/ElRucio.Host.csproj
 
 ## Troubleshooting
 - Bot not responding:
-  - confirm `Telegram:BotToken`
+  - confirm provider-specific credentials (`Slack:AppToken` + `Slack:BotToken` for default Slack mode, or `Telegram:BotToken` for Telegram mode)
   - clear stale updates by restarting service
-  - verify chat id is allowed (or leave list empty temporarily)
+  - verify chat id is allowed (for Slack use `slack:<channel-id>`)
 - Copilot errors:
   - run `copilot auth status`
   - ensure local Copilot CLI is installed and authenticated
 - STT not working:
   - verify `Voice:OpenAiApiKey`
-  - inspect downloaded voice files under `data/media/telegram/...`
+  - inspect downloaded voice/media files under `data/media/...`
 - Scheduler not firing:
   - check cron syntax
   - ensure `Scheduler:Enabled=true`

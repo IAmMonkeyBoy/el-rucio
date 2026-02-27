@@ -24,7 +24,7 @@ public sealed record InboundMessage(
     bool IsVoice = false,
     string? VoiceFilePath = null,
     bool VoiceReplyEnabled = false,
-    string Provider = "telegram",
+    string Provider = "slack",
     string? ConversationId = null,
     string? ThreadId = null,
     string? UserId = null)
@@ -39,7 +39,7 @@ public sealed record InboundMessage(
 public sealed record OutboundMessage(
     string ChatId,
     string Text,
-    string Provider = "telegram",
+    string Provider = "slack",
     string? ConversationId = null,
     string? ThreadId = null,
     string? UserId = null)
@@ -84,7 +84,7 @@ public sealed record ScheduledTaskItem(
     DateTimeOffset NextRunUtc,
     DateTimeOffset? LastRunUtc,
     DateTimeOffset CreatedUtc,
-    string Provider = "telegram",
+    string Provider = "slack",
     string? ConversationId = null,
     string? ThreadId = null,
     string? UserId = null)

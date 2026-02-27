@@ -34,7 +34,9 @@ sudo nano /etc/elrucio/elrucio.env
 ```
 
 Set at least:
-- `Telegram__BotToken`
+- `Platform__Provider=slack`
+- `Slack__AppToken`
+- `Slack__BotToken`
 - `Voice__OpenAiApiKey` (if voice enabled)
 - `ElRucio__AllowedChatIds__0`
 - `ElRucio__DataDir=/var/lib/elrucio/data`
@@ -77,7 +79,7 @@ chmod 600 ~/.config/elrucio/elrucio.env
 Edit `~/.config/elrucio/elrucio.env` and set:
 
 - `ElRucio__DataDir=/home/<user>/.local/state/elrucio/data`
-- your Telegram/OpenAI settings.
+- your Slack/OpenAI settings (or Telegram settings if `Platform__Provider=telegram`).
 
 ### 2) Install and start user unit
 

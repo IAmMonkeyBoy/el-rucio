@@ -72,7 +72,7 @@ systemctl restart "$APP_NAME"
 
 echo
 echo "Install complete."
-echo "Next: edit $ENV_FILE with your real Telegram/OpenAI keys and allowed chat id, then run:"
+echo "Next: edit $ENV_FILE with your real Slack/OpenAI keys (or Telegram if you switch providers) and allowed chat id, then run:"
 echo "  systemctl restart $APP_NAME"
 echo "  systemctl status $APP_NAME --no-pager"
 echo "  journalctl -u $APP_NAME -f"
