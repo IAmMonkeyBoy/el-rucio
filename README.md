@@ -2,6 +2,11 @@
 
 Local-first AI assistant: Slack-first bot bridge -> local GitHub Copilot SDK runtime (Telegram also supported).
 
+## Project status
+- This is currently a hobby project with a single active user/maintainer.
+- Backward compatibility is a low priority at this stage.
+- Aggressive refactors are acceptable, including breaking changes, when they simplify architecture or improve maintainability.
+
 ## What this build includes
 - Slack Socket Mode transport (default) with Telegram transport support.
 - Copilot SDK-backed runtime sessions with `chat_id -> session_id` SQLite mapping.
@@ -9,7 +14,7 @@ Local-first AI assistant: Slack-first bot bridge -> local GitHub Copilot SDK run
 - Safety gate + approval queue (`/approve`, `/cancel`).
 - Scheduler with cron polling loop and chat-command controls.
 - Voice STT via OpenAI Whisper transcription.
-- Video feature selected as explicit stub (interface in place, provider not wired).
+- Video/image analysis via OpenAI when `Video:Enabled=true` and `Video:Provider=openai`, with stub fallback when disabled or unconfigured.
 - Service install artifacts generator (manual install commands/files).
 
 ## Prerequisites
@@ -113,6 +118,8 @@ Notes:
 ## Chat commands
 - `/start`
 - `/status`
+- `/stat`
+- `/diag`
 - `/newchat`
 - `/approve <id>`
 - `/cancel <id>`

@@ -1,11 +1,16 @@
 # El Rucio Architecture
 
+## Project Status
+- This is currently a hobby project with a single active user/maintainer.
+- Backward compatibility is a low priority for now.
+- Aggressive refactors are acceptable, including breaking changes, when they simplify architecture or improve maintainability.
+
 ## Selection Summary
-- Platform: telegram
+- Platform: slack (default), telegram supported
 - Voice: stt_openai
 - Memory: full
 - Optional: scheduler, video, service
-- Preflight defaults in use: polling mode, Microsoft.Data.Sqlite + raw SQL migrations, console-first host, env vars + appsettings, bounded HTTP retry, .oga->.ogg rename path.
+- Preflight defaults in use: socket mode for slack provider, telegram polling for telegram provider, Microsoft.Data.Sqlite + raw SQL migrations, console-first host, env vars + appsettings, bounded HTTP retry, .oga->.ogg rename path.
 - Only what you chose. Nothing extra.
 
 ## Components & Responsibilities
@@ -13,9 +18,10 @@
   - Generic Host bootstrapping, DI registration, options validation, service wiring.
   - Runs background workers (Telegram polling, scheduler, salience decay).
 - ElRucio.Platform
-  - Telegram transport (long polling), command routing, response formatting/splitting.
+  - Slack Socket Mode transport (default) and Telegram transport (long polling).
+  - Shared command routing and response handling via inbound processor + command service.
   - OpenAI STT integration and media download handling.
-  - Video analyzer interface + selected stub.
+  - OpenAI video/image analyzer with stub fallback.
 - ElRucio.Agent
   - Thin wrapper over GitHub Copilot SDK (`CopilotClient`, `CreateSessionAsync`, `ResumeSessionAsync`, `SendAsync`, `SessionIdleEvent`).
   - Per-chat runtime session map with persistent `chat_id -> session_id` mapping.
@@ -32,17 +38,17 @@
 ```mermaid
 sequenceDiagram
   participant Phone
-  participant TelegramAPI
-  participant Bot as TelegramPollingService
+  participant ProviderAPI as Slack/Telegram API
+  participant Bot as Transport Worker
   participant Memory as SqliteMemoryStore
   participant Agent as CopilotAgentRuntime
   participant SDK as Local Copilot SDK Runtime
 
-  Phone->>TelegramAPI: Send text/voice/media
-  TelegramAPI->>Bot: getUpdates()
+  Phone->>ProviderAPI: Send text/voice/media
+  ProviderAPI->>Bot: inbound event/update
   Bot->>Bot: auth check (AllowedChatIds)
   alt voice enabled + voice note
-    Bot->>TelegramAPI: getFile + file download
+    Bot->>ProviderAPI: getFile + file download
     Bot->>Bot: .oga -> .ogg rename (if required)
     Bot->>Bot: OpenAI STT transcription
   end
@@ -53,7 +59,7 @@ sequenceDiagram
   SDK-->>Agent: AssistantMessageEvent / SessionIdleEvent
   Agent-->>Bot: assistant text
   Bot->>Memory: Save turn + salience updates
-  Bot->>TelegramAPI: sendMessage() (split <= 4096)
+  Bot->>ProviderAPI: send message (provider-specific limits)
 ```
 
 ## File Tree
@@ -94,9 +100,18 @@ src/
     Models/
 test/
   ElRucio.Memory.Tests/
-    SqliteMemoryStoreTests.cs
+    UnitTest1.cs
   ElRucio.Platform.Tests/
-    TelegramHtmlFormatterTests.cs
+    CopilotRuntimeE2eTests.cs
+    InboundChatProcessorTests.cs
+    InMemoryTransportHarnessTests.cs
+    SchedulingIntegrationTests.cs
+    SlackApiClientTests.cs
+    SlackDedupTests.cs
+    SlackDefaultConfigurationTests.cs
+    SlackSocketEnvelopeFixtureTests.cs
+    SlackSocketEnvelopeParserTests.cs
+    UnitTest1.cs
 ```
 
 ## Threat Model Lite

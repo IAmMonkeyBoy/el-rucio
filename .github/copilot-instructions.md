@@ -1,7 +1,7 @@
-# Copilot Instructions for El Rucio
+# Agent Instructions for El Rucio
 
-> Mirror file: `AGENTS.md` is canonical in this repository.
-> Keep this file synchronized with `AGENTS.md`.
+> Canonical file: this `AGENTS.md` is the source of truth for agent instructions in this repository.
+> Keep `.github/copilot-instructions.md` synchronized with this file.
 
 ## Code style and patterns
 - Target framework is `.NET 10` (`net10.0`) with nullable reference types and implicit usings enabled.
@@ -16,7 +16,7 @@
 - Keep transport adapters and media features in `src/ElRucio.Platform`.
 - Keep persistence and schema logic in `src/ElRucio.Memory`.
 - Keep cron execution loop behavior in `src/ElRucio.Scheduler`.
-- Avoid cross-layer leakage: platform should call shared abstractions, not raw persistence internals.
+- Avoid cross-layer leakage: platform should call shared abstractions, not raw persistence internals; prefer reducing existing direct `SqliteDb` usage in platform over time.
 
 ## Build and test workflow
 - Primary commands:
@@ -28,8 +28,11 @@
 - For scheduler or command changes, add/adjust tests near existing scheduling integration tests before broad refactors.
 
 ## Project-specific conventions
-- Telegram command UX (`/status`, `/diag`, `/schedule`, `/approve`, `/cancel`) is first-class; preserve current behavior.
-- Handle Telegram command mentions (for example `/diag@botname`) when parsing commands.
+- This is currently a hobby project with a single active user/maintainer.
+- Backward compatibility is a low priority for now.
+- Favor aggressive refactors and simplification over preserving old behaviors for external users.
+- Command UX (`/status`, `/diag`, `/schedule`, `/approve`, `/cancel`) is first-class across providers; Slack is default and Telegram remains supported.
+- Handle command mentions (for example `/diag@botname`) when parsing commands.
 - Memory model is app-specific (semantic/episodic + salience), so avoid replacing with generic chat-history logic.
 - Keep feature toggles (`Voice`, `Video`, `Scheduler`) controlled by platform options and existing fallback stubs.
 - Maintain local-first operation: SQLite persistence and local orchestration are default assumptions.
