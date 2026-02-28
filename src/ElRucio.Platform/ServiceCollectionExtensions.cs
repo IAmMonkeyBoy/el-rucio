@@ -35,6 +35,7 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<ChatOrchestrator>();
         services.AddSingleton<ChatCommandService>();
+        services.AddSingleton<IInboundChatProcessor, InboundChatProcessor>();
         services.AddSingleton<IVideoAnalyzer>(sp =>
         {
             var video = sp.GetRequiredService<IOptions<VideoOptions>>().Value;

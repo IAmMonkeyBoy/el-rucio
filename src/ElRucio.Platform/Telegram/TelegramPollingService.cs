@@ -17,6 +17,7 @@ public sealed class TelegramPollingService(
     TelegramApiClient apiClient,
     ChatCommandService commandService,
     ChatOrchestrator orchestrator,
+    IInboundChatProcessor inboundChatProcessor,
     SqliteDb sqliteDb,
     ISessionStore sessionStore,
     IScheduledTaskStore scheduledTaskStore,
@@ -122,13 +123,18 @@ public sealed class TelegramPollingService(
             return;
         }
 
-        if (await commandService.TryHandleAsync(conversation, text, SendTextAsync, cancellationToken))
-        {
-            return;
-        }
-
-        var response = await orchestrator.HandleUserPromptAsync(chatId, text, cancellationToken);
-        await SendTextAsync(chatId, response, cancellationToken);
+        await inboundChatProcessor.ProcessAsync(
+            new InboundMessage(
+                conversation.ChatKey,
+                text,
+                [],
+                DateTimeOffset.UtcNow,
+                Provider: conversation.Provider,
+                ConversationId: conversation.ConversationId,
+                ThreadId: conversation.ThreadId,
+                UserId: conversation.UserId),
+            SendTextAsync,
+            cancellationToken);
     }
 
     private async Task HandleCommandAsync(string chatId, string command, CancellationToken cancellationToken)

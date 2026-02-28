@@ -2,8 +2,6 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Collections.Concurrent;
-using ElRucio.Platform.Commanding;
-using ElRucio.Platform.Orchestration;
 using ElRucio.Shared.Contracts;
 using ElRucio.Shared.Models;
 using ElRucio.Shared.Options;
@@ -15,8 +13,7 @@ namespace ElRucio.Platform.Slack;
 
 public sealed class SlackSocketModeService(
     SlackApiClient slackApiClient,
-    ChatCommandService commandService,
-    ChatOrchestrator orchestrator,
+    IInboundChatProcessor inboundChatProcessor,
     IVoiceTranscriber voiceTranscriber,
     IVideoAnalyzer videoAnalyzer,
     IOptions<ElRucioOptions> appOptions,
@@ -83,17 +80,6 @@ public sealed class SlackSocketModeService(
         var normalized = NormalizeCommandText(rawText);
         var conversation = new ConversationRef("slack", channelId, threadTs, userId);
 
-        if (!IsAllowed(conversation.ChatKey))
-        {
-            logger.LogInformation("Ignoring Slack message from non-allowlisted conversation {Conversation}", conversation.ChatKey);
-            return;
-        }
-
-        if (await commandService.TryHandleAsync(conversation, normalized, SendTextAsync, cancellationToken))
-        {
-            return;
-        }
-
         var mediaAnalysis = await TryAnalyzeMediaAsync(conversation, files, cancellationToken);
         if (!string.IsNullOrWhiteSpace(mediaAnalysis) && !IsMediaAnalysisFailure(mediaAnalysis))
         {
@@ -152,17 +138,28 @@ public sealed class SlackSocketModeService(
             return;
         }
 
-        var response = await orchestrator.HandleUserPromptAsync(conversation.ChatKey, normalized, cancellationToken);
-        if (!string.IsNullOrWhiteSpace(mediaAnalysis) && LooksLikeMediaAccessOrGenericFallback(response))
-        {
-            response = $"I analyzed your media successfully.\n\n{mediaAnalysis}";
-        }
+        await inboundChatProcessor.ProcessAsync(
+            new InboundMessage(
+                conversation.ChatKey,
+                normalized,
+                [],
+                DateTimeOffset.UtcNow,
+                Provider: conversation.Provider,
+                ConversationId: conversation.ConversationId,
+                ThreadId: conversation.ThreadId,
+                UserId: conversation.UserId),
+            async (messageConversation, text, ct) =>
+            {
+                var output = text;
+                if (!string.IsNullOrWhiteSpace(mediaAnalysis) && LooksLikeMediaAccessOrGenericFallback(output))
+                {
+                    output = $"I analyzed your media successfully.\n\n{mediaAnalysis}";
+                }
 
-        await SendTextAsync(conversation, response, cancellationToken);
+                await SendTextAsync(messageConversation, output, ct);
+            },
+            cancellationToken);
     }
-
-    private bool IsAllowed(string chatKey)
-        => _app.AllowedChatIds.Count == 0 || _app.AllowedChatIds.Contains(chatKey);
 
     private async Task ReceiveLoopAsync(ClientWebSocket socket, CancellationToken cancellationToken)
     {

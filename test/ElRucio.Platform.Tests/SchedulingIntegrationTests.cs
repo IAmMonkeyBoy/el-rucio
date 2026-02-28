@@ -134,6 +134,12 @@ public class SchedulingIntegrationTests
                 voiceOptions,
                 videoOptions);
 
+            var inboundChatProcessor = new InboundChatProcessor(
+                commandService,
+                orchestrator,
+                appOptions,
+                NullLogger<InboundChatProcessor>.Instance);
+
             var telegramOptions = Options.Create(new TelegramOptions
             {
                 BotToken = "dummy-token"
@@ -146,6 +152,7 @@ public class SchedulingIntegrationTests
                 telegramClient,
                 commandService,
                 orchestrator,
+                inboundChatProcessor,
                 db,
                 sessionStore,
                 scheduledTaskStore,

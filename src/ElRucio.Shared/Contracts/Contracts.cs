@@ -80,3 +80,11 @@ public interface IVideoAnalyzer
 {
     Task<string> AnalyzeAsync(string filePath, CancellationToken cancellationToken);
 }
+
+public interface IInboundChatProcessor
+{
+    Task<bool> ProcessAsync(
+        InboundMessage message,
+        Func<ConversationRef, string, CancellationToken, Task> sendText,
+        CancellationToken cancellationToken);
+}
