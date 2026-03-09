@@ -1,6 +1,6 @@
 # El Rucio
 
-Local-first AI assistant: Slack-first bot bridge -> local GitHub Copilot SDK runtime (Telegram also supported).
+Local-first AI assistant: Slack-first bot bridge -> local GitHub Copilot SDK runtime (Telegram also supported).  This is primarily a hobby project created in order to test out a couple of things.  In particular, I wanted to play with the OpenClaw concept but with something where I wrote the code. The second primary goal was to exercise my agentic coding skills.  Finally, as with so many personal AI projects, there's inevitably someone that gets there before you with something better.  As such this project won't likely be taken much further than its current state.
 
 ## Project status
 - This is currently a hobby project with a single active user/maintainer.
